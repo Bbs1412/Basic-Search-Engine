@@ -244,29 +244,44 @@ else:
 
 # Render entire chat history:
 for message in st.session_state.chat_history:
+    role = None
     if isinstance(message, HumanMessage):
-        st.chat_message("user").write(message.content)
+        role = "user"
     elif isinstance(message, AIMessage):
-        st.chat_message("assistant").write(message.content)
+        role = "assistant"
     elif isinstance(message, ToolMessage):
-        st.chat_message("tool", avatar="⚙️").write(message.content)
+        role = "tool"
     else:
-        st.chat_message("system").write(type(message) + message.content)
+        role = "system"
+
+    st.chat_message(role, avatar="⚙️" if role == "tool" else None).markdown(message.content)
+    # st.chat_message("system").markdown(type(message) + message.content)
 
 
 if prompt := st.chat_input("Ask me anything..."):
-    st.session_state.chat_history.append(HumanMessage(content=prompt))
-    st.chat_message("Human").write(prompt)
+    st.chat_message("user").markdown(prompt)
 
     search_agent = initialize_agent(
         tools=tools, llm=llm,
         agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-        handling_parsing_errors=True
+        handle_parsing_errors=True
     )
 
     with st.container(border=True):
         with st.chat_message("assistant"):
             st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=False)
-            response = search_agent.run(st.session_state.chat_history, callbacks=[st_cb])
-            st.write(response)
-            st.session_state.chat_history.append(AIMessage(content=response))
+
+            # response = search_agent.run(st.session_state.chat_history, callbacks=[st_cb])
+            response = search_agent.run(
+                input={
+                    "input": prompt,
+                    "chat_history": st.session_state.chat_history
+                },
+                callbacks=[st_cb]
+            )
+
+            st.subheader("📝 :green[Response:]", divider="rainbow")
+            st.markdown(response)
+            
+    st.session_state.chat_history.append(HumanMessage(content=prompt))
+    st.session_state.chat_history.append(AIMessage(content=response))
